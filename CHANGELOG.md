@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.15.1](https://github.com/kgoedecke/doop/compare/v0.15.0...v0.15.1) (2026-11-16)
+
+
+### Bug Fixes
+
+* **server:** allow configuring the listen host ([#522](https://github.com/kgoedecke/doop/issues/522)) ([26399ca](https://github.com/kgoedecke/doop/commit/26399cafb431e3bb213734551718e36e2ab31f50))
+* **sync:** resolve a stylesheet's url()s against the sheet, so synced fonts load ([#506](https://github.com/kgoedecke/doop/issues/506)) ([07a5f6a](https://github.com/kgoedecke/doop/commit/07a5f6a324e918a935a99e1d210801ae89f4d2b9))
+
 ## [0.15.0](https://github.com/kgoedecke/doop/compare/v0.14.0...v0.15.0) (2026-11-16)
 
 
