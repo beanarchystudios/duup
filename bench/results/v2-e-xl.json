@@ -1,0 +1,44 @@
+[
+  {
+    "size": "XL",
+    "frames": 52000,
+    "objects": 1504220,
+    "openMs": 4996,
+    "settleMs": 4996,
+    "iframes": 6,
+    "heapMb": 162,
+    "renderer": "webgl2",
+    "overviewPan": {
+      "frames": 180,
+      "p50": 16.7,
+      "p95": 16.8,
+      "p99": 16.8,
+      "max": 16.8,
+      "janky": 0
+    },
+    "overviewZoom": {
+      "frames": 182,
+      "p50": 16.7,
+      "p95": 16.8,
+      "p99": 16.8,
+      "max": 16.8,
+      "janky": 0
+    },
+    "workPan": {
+      "frames": 180,
+      "p50": 16.7,
+      "p95": 16.7,
+      "p99": 16.8,
+      "max": 16.8,
+      "janky": 0
+    },
+    "workZoom": {
+      "frames": 182,
+      "p50": 16.7,
+      "p95": 16.7,
+      "p99": 16.8,
+      "max": 16.8,
+      "janky": 0
+    }
+  }
+]

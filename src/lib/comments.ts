@@ -64,7 +64,17 @@ export function openThreadCount(
   return pageThreads(comments, canvas, pageId).filter((t) => threadState(t) === 'open').length
 }
 
+/* the last count and what it was counted from: the selector runs on every
+   store update (each pan step is one), and counting walks the whole page */
+let counted: { comments: unknown; canvas: unknown; pageId: string | null; count: number } | null = null
+
 /** Open threads on the page in view — the rail and tab badges. */
 export function useOpenThreadCount(): number {
-  return useStore((s) => openThreadCount(s.comments, s.canvas, s.activePageId))
+  return useStore((s) => {
+    if (counted && counted.comments === s.comments && counted.canvas === s.canvas && counted.pageId === s.activePageId)
+      return counted.count
+    const count = openThreadCount(s.comments, s.canvas, s.activePageId)
+    counted = { comments: s.comments, canvas: s.canvas, pageId: s.activePageId, count }
+    return count
+  })
 }

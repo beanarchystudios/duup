@@ -29,7 +29,8 @@ White system (Doop UI v2, canvas guideline `doop-ui-system`): neutral greys, no 
 
 ## Typography
 
-- `--font-ui` / `--font-display`: `'Inter'` - UI and headings (`--font-sans` / `--font-heading`
+- `--font-ui` / `--font-display`: `'Allo'` (Josh Puckett's OFL face built from Inter 4.1, self-hosted from
+  the `allo-font` npm package, imported at the top of `src/styles.css`) - UI and headings (`--font-sans` / `--font-heading`
   aliases). `--font-mono`: `'Geist Mono', ui-monospace, monospace` - values only (ids, sizes,
   numbers, key caps, code); the mono-uppercase caption voice is retired, captions and field labels
   are `text-caption` / `text-label` in sentence case. `--font-hero`: `'Hanken Grotesk'` Light - the

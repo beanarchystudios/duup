@@ -3296,7 +3296,16 @@ app.get('/sitemap.xml', (_req, res) => {
 /* production: serve the built client */
 if (env.isProduction) {
   const dist = path.join(process.cwd(), 'dist')
-  app.use(express.static(dist))
+  app.use(
+    express.static(dist, {
+      /* the canvas renderer's raster frame (raster-frame.html) is a sandboxed
+         iframe with an opaque origin, and a module script it loads is a CORS
+         request: the hashed bundles are public, so any origin may load them */
+      setHeaders: (res, file) => {
+        if (file.startsWith(path.join(dist, 'assets'))) res.setHeader('Access-Control-Allow-Origin', '*')
+      },
+    }),
+  )
   /* a missing bundle or source map is a 404, not the app shell: HTML served
      as a .js or .map breaks module loads and source map resolution */
   app.get('/assets/*', (_req, res) => res.sendStatus(404))

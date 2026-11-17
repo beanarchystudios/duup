@@ -63,6 +63,7 @@ import { withWebFontLinks } from '../../shared/webFonts'
 import { withTokenBlock } from '../../shared/designTokens'
 import { canvasFonts } from '../lib/customFonts'
 import { t as translate, useT } from '../lib/i18n'
+import { useSceneState } from '../lib/scene/sceneState'
 
 /** ?comment=<rootId> — the link in a comment email. The thread opens once
  *  Stage has selected the linked frame (deselection closes popovers, and on
@@ -256,11 +257,15 @@ export const FrameView = memo(function FrameView({
   frame,
   stack,
   layoutZoom,
+  live = true,
 }: {
   frame: Frame
   /** its place in the page's paint order (the Stage's z-index), front highest */
   stack?: number
   layoutZoom: number
+  /** holds its real document in an iframe. A frame that is not live is the
+   *  compositor's picture under this FrameView's chrome (livePolicy.ts) */
+  live?: boolean
 }) {
   const t = useT()
   const [menuTarget, setMenuTarget] = useState<
@@ -816,6 +821,37 @@ export const FrameView = memo(function FrameView({
   /* the margin the iframe reaches past a standalone shape's box, so a stroke
      spills past it as in Figma (the runtime asks, see `bleed` there) */
   const [bleed, setBleed] = useState(0)
+  /* the iframe goes with `live`: its runtime and document go with it, and a
+     new one starts from scratch when the frame is live again */
+  const [wasLive, setWasLive] = useState(live)
+  if (wasLive !== live) {
+    setWasLive(live)
+    if (!live) {
+      setRuntimeReady(false)
+      setRuntimeDocument(null)
+      setBleed(0)
+    }
+  }
+  useEffect(() => {
+    if (live) return
+    keyPort.current?.close()
+    keyPort.current = null
+    localHtml.current = null
+  }, [live])
+  /* the compositor draws a frame until its live iframe shows a document, and
+     leaves it to the iframe from then on; a GPU-drawn page also keeps the
+     white ground off until then, so the picture under it shows meanwhile */
+  const gpu = useSceneState((s) => s.renderer === 'webgpu' || s.renderer === 'webgl2')
+  const showing = live && runtimeDocument !== null
+  useEffect(() => {
+    if (!showing) return
+    /* a frame after the document lands, so the iframe has painted it */
+    const raf = requestAnimationFrame(() => useSceneState.getState().setShowing(frame.id, true))
+    return () => {
+      cancelAnimationFrame(raf)
+      useSceneState.getState().setShowing(frame.id, false)
+    }
+  }, [showing, frame.id])
   /* the port the runtime relays keys over; see `replayKey` */
   const keyPort = useRef<MessagePort | null>(null)
   /* saves a document the runtime serialized after a text edit (set below) */
@@ -1836,6 +1872,7 @@ export const FrameView = memo(function FrameView({
                  pixel in from the edge: painted to the edge, it showed past the
                  scaled iframe's antialiased edge as a light seam */
               !isCanvasElement(frame.html) &&
+                (showing || !gpu) &&
                 "before:absolute before:inset-[calc(1px/var(--zoom,1))] before:bg-white before:content-['']",
               /* Select keeps the arrow, like Figma: the frame is a thing to
                  point at, not a handle. The Hand tool's grab and the Comment
@@ -1904,15 +1941,16 @@ export const FrameView = memo(function FrameView({
                  belong to the canvas, so neither this box nor the iframe takes them */
               style={{ left: -bleed, top: -bleed, ...(bleed ? { pointerEvents: 'none' } : null) }}
             >
-              <iframe
-                ref={iframeRef}
-                className="relative block border-none bg-transparent"
-                data-bleed={bleed || undefined}
-                title={frame.name}
-                data-doop-frame=""
-                sandbox="allow-scripts"
-                srcDoc={FRAME_BOOTSTRAP}
-                /* The world is laid out at CSS zoom k (Stage), which an iframe
+              {live && (
+                <iframe
+                  ref={iframeRef}
+                  className="relative block border-none bg-transparent"
+                  data-bleed={bleed || undefined}
+                  title={frame.name}
+                  data-doop-frame=""
+                  sandbox="allow-scripts"
+                  srcDoc={FRAME_BOOTSTRAP}
+                  /* The world is laid out at CSS zoom k (Stage), which an iframe
                  passes into its document. Chromium takes it as pixel density:
                  the document keeps its design-px viewport and rasterizes at
                  k×, even out of process, where a transform on this element
@@ -1920,23 +1958,24 @@ export const FrameView = memo(function FrameView({
                  document out at the zoomed width, so there the zoom is undone
                  here (keeping viewport, vh/vw, media queries and runtime rects
                  in design px) and the scale restores the box. */
-                style={{
-                  width: frame.width + 2 * bleed,
-                  height: frame.height + 2 * bleed,
-                  /* while editing, the document takes the pointer back */
-                  ...(bleed ? { pointerEvents: editing ? 'auto' : 'none' } : null),
-                  ...(FRAME_DOCUMENTS_TAKE_ZOOM_AS_DENSITY
-                    ? null
-                    : { zoom: counterZoom(layoutZoom), transform: `scale(${layoutZoom})` }),
-                  transformOrigin: '0 0',
-                  /* Chromium paints an opaque backdrop behind an iframe whose
+                  style={{
+                    width: frame.width + 2 * bleed,
+                    height: frame.height + 2 * bleed,
+                    /* while editing, the document takes the pointer back */
+                    ...(bleed ? { pointerEvents: editing ? 'auto' : 'none' } : null),
+                    ...(FRAME_DOCUMENTS_TAKE_ZOOM_AS_DENSITY
+                      ? null
+                      : { zoom: counterZoom(layoutZoom), transform: `scale(${layoutZoom})` }),
+                    transformOrigin: '0 0',
+                    /* Chromium paints an opaque backdrop behind an iframe whose
                    colour scheme differs from its document's; the page's dark
                    scheme reaches this element by inheritance while a
                    standalone element's document is light, so a shape on the
                    dark canvas sat on a white square */
-                  ...(isCanvasElement(frame.html) ? { colorScheme: 'light' } : null),
-                }}
-              />
+                    ...(isCanvasElement(frame.html) ? { colorScheme: 'light' } : null),
+                  }}
+                />
+              )}
             </div>
             {/* a standalone element is see-through: the paper's grid shows */}
             {!isCanvasElement(frame.html) && <PixelGrid layoutZoom={layoutZoom} />}
@@ -2123,7 +2162,11 @@ export const FrameView = memo(function FrameView({
               return (
                 <div data-comment-ui className="pointer-events-none absolute inset-0">
                   {comments.map((c) => {
-                    const pos = isFrameComment(c) ? { x: c.x, y: c.y } : elementCommentPosition(c, pinPos[c.id])
+                    const pos = isFrameComment(c)
+                      ? { x: c.x, y: c.y }
+                      : !live && c.x !== undefined && c.y !== undefined
+                        ? { x: c.x, y: c.y }
+                        : elementCommentPosition(c, pinPos[c.id])
                     const open = openThread === c.id
                     if (!pos || (!pinsShown && !open && draggedPin !== c.id)) return null
                     const replies = frameComments.filter((r) => r.parentId === c.id).reverse() // store is newest-first

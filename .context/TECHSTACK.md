@@ -499,6 +499,25 @@ data-doop-webfonts>` for the roster families the frame names and does not load i
 
 ## 4. Canvas Drawing
 
+- Canvas renderer (`src/lib/scene/`, plan `.context/plans/renderer-v2.md`): one GPU `<canvas>` under the
+  world (`CanvasCompositor.tsx`) draws every frame that is not live as a texture and every doop rectangle or
+  ellipse as a native primitive (`primitives.ts`: fill, radius, one drop shadow; anything else is drawn
+  from a raster of its document). WebGPU first, WebGL2 when WebGPU is missing or only software
+  (`gpu/webgpu.ts`, `gpu/webgl2.ts`, one `GpuRenderer` interface and instance layout); `doop:renderer` in
+  localStorage picks `webgpu` / `webgl2` / `dom` (every frame a live iframe, the old renderer). A pan or
+  zoom only rewrites the camera uniform. Frames are packed into shelf atlases (`atlas.ts`, 512 MB budget,
+  least-recently-drawn page evicted) at power-of-two levels of detail (`lod.ts`); rasters are drawn by
+  `documentRaster.ts` (the export's inlined-SVG path) in a sandboxed `raster-frame.html` iframe, off the
+  editor's thread (`rasterHost.ts`, the main thread only as a fallback), queued nearest-first and cached
+  in IndexedDB as WebP by content key (`rasters.ts`). `livePolicy.ts` decides which frames get a
+  FrameView (chrome, drag, pins; at most 120) and which of those a live iframe (selected, streamed into,
+  hovered after a dwell, zoomed in on, or undrawable; at most 8 besides those being worked on); a page of
+  24 frames or fewer keeps every frame live. Frames with no FrameView are hit-tested through a packed
+  R-tree (`sceneIndex.ts`, `scene.ts`) and dragged by the Stage (`sceneDrag.ts`), their names painted on
+  a 2D layer (`labels.ts`). The Layers panel windows its rows past 150. Benchmarks: `bun run bench`
+  (`bench/run.ts`, generated canvases in `tests/benchCanvas.ts`, budgets in `bench/budgets.json`),
+  `bench:shot` (screenshot, `--profile`, `--trace`) and `bench:record` (video). Never add a
+  `body:has(...)` rule with a descendant part: it restyled every element on each DOM insertion.
 - Canvas zoom: the camera runs from 8% to 1600% (`MAX_ZOOM`, mirrored by `FOLLOW_MAX_ZOOM`).
   `Stage.tsx` lays the `.world` out at CSS zoom k, the settled camera zoom clamped
   to 1-16, and its transform carries only the camera's movement since (`scale(zoom / k)`).

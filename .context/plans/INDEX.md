@@ -9,3 +9,6 @@ lists every file in this folder.
 - [image-descriptions.md](image-descriptions.md) - Three phases, test-first: storage and the
   describer worker, the agent read paths (`get_canvas`, `get_frame`, the resident kickoff), the
   Settings → Agents switch.
+- [renderer-v2.md](renderer-v2.md) - The canvas renderer rewrite for million-object canvases: a
+  benchmark first, then a SceneStore with culling, a raster service, a WebGL2 compositor, live
+  iframes only on promotion, native drawing primitives and effects.

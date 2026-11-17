@@ -17,6 +17,7 @@ const pages: UserConfig = {
     rollupOptions: {
       input: [
         'index.html',
+        'raster-frame.html',
         ...readdirSync('tests/fixtures')
           .filter((name) => name.endsWith('.html'))
           .map((name) => `tests/fixtures/${name}`),
@@ -25,4 +26,9 @@ const pages: UserConfig = {
   },
 }
 
-export default mergeConfig(app as UserConfig, pages)
+const merged = mergeConfig(app as UserConfig, pages)
+/* mergeConfig concatenates the two input lists: the app's own pages are in both */
+const input = merged.build?.rollupOptions?.input
+if (Array.isArray(input) && merged.build?.rollupOptions) merged.build.rollupOptions.input = [...new Set(input)]
+
+export default merged

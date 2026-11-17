@@ -53,6 +53,12 @@ import { useT, type PlainMessageKey } from '../lib/i18n'
 import { NO_INSETS, fitBox, type StageInsets } from '../lib/viewFit'
 import { spaceWouldScroll } from '../lib/spaceScroll'
 import { ZOOM_DRAG_MIN, ZOOM_TOOL_STEP, zoomAtPoint, zoomToBox } from '../lib/zoomTool'
+import { CanvasCompositor, CanvasLabels } from './CanvasCompositor'
+import { useFrameMounts } from '../lib/scene/useFrameMounts'
+import type { Policy } from '../lib/scene/livePolicy'
+import { currentScene } from '../lib/scene/scene'
+import { useSceneState } from '../lib/scene/sceneState'
+import { startSceneDrag, unmountedFrameAt } from '../lib/scene/sceneDrag'
 
 const MIN_ZOOM = 0.08
 /* The settled world is laid out at up to this zoom too (layoutZoomFor), so
@@ -160,18 +166,30 @@ const TOOL_ICONS: Record<Tool, React.ReactNode> = {
 const sendCursor = throttle((x: number, y: number) => sendWs({ type: 'cursor', x, y }), 50)
 /* the camera is shared so others can follow it — same cadence as the cursor */
 const sendViewport = throttle(
-  (vp: { x: number; y: number; zoom: number }, el: HTMLElement) =>
+  (vp: { x: number; y: number; zoom: number }, size: { width: number; height: number }) =>
     sendWs({
       type: 'viewport',
       viewport: {
         ...vp,
         pageId: useStore.getState().activePageId ?? undefined,
-        width: el.clientWidth,
-        height: el.clientHeight,
+        width: size.width,
+        height: size.height,
       },
     }),
   50,
 )
+
+/** `el.style` custom properties, written only when they change: setting an
+ *  inherited custom property restyles every element under it, even to the
+ *  value it already had */
+const written = new WeakMap<HTMLElement, Map<string, string>>()
+function setVar(el: HTMLElement, name: string, value: string) {
+  let vars = written.get(el)
+  if (!vars) written.set(el, (vars = new Map()))
+  if (vars.get(name) === value) return
+  vars.set(name, value)
+  el.style.setProperty(name, value)
+}
 
 /** The stage's own paint when the page has a colour: the colour, and a dot
  *  grid that reads on it (the theme's dots are tuned to the theme paper). */
@@ -235,9 +253,41 @@ export function Stage({
   const gridRef = useRef<HTMLDivElement>(null)
   const pixelGridRef = useRef<HTMLDivElement>(null)
   const [labelLayer, setLabelLayer] = useState<HTMLDivElement | null>(null)
+  /* the badge layer carries the camera's offset (--vx, --vy) for its own
+     children alone, so a pan restyles nothing else */
+  const labelLayerRef = useRef<HTMLDivElement | null>(null)
+  const attachLabelLayer = useCallback((el: HTMLDivElement | null) => {
+    labelLayerRef.current = el
+    if (el) {
+      const vp = useStore.getState().viewport
+      setVar(el, '--vx', `${vp.x}px`)
+      setVar(el, '--vy', `${vp.y}px`)
+    }
+    setLabelLayer(el)
+  }, [])
+  /* the stage's size, as the browser last laid it out: read on every camera
+     step, where asking the element would force a layout */
+  const stageBox = useRef({ width: 0, height: 0 })
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    stageBox.current = { width: el.clientWidth, height: el.clientHeight }
+    const ro = new ResizeObserver(([entry]) => {
+      if (entry) stageBox.current = { width: entry.contentRect.width, height: entry.contentRect.height }
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
   const zoomLabelRef = useRef<HTMLSpanElement>(null)
   const setViewport = useStore((s) => s.setViewport)
   const canvas = usePageCanvas()
+  /* the frames that get a FrameView, and which of those are live iframes;
+     null mounts every frame live (no GPU renderer) */
+  const mounts = useFrameMounts(canvas?.frames.length ?? 0)
+  const mountsRef = useRef(mounts)
+  useLayoutEffect(() => {
+    mountsRef.current = mounts
+  }, [mounts])
   const activePageId = useStore((s) => s.activePageId)
   /* a page with a colour of its own paints the stage, dots in its contrast */
   const paper = usePaper()
@@ -302,10 +352,13 @@ export function Stage({
       const stage = ref.current
       if (!world || !grid || !stage) return
       world.style.transform = worldTransform(vp, layoutZoomRef.current)
-      stage.style.setProperty('--zoom', String(vp.zoom))
+      setVar(stage, '--zoom', String(vp.zoom))
       /* the camera's offset, for chrome drawn in screen px (FrameLabelLayer) */
-      stage.style.setProperty('--vx', `${vp.x}px`)
-      stage.style.setProperty('--vy', `${vp.y}px`)
+      const badges = labelLayerRef.current
+      if (badges) {
+        setVar(badges, '--vx', `${vp.x}px`)
+        setVar(badges, '--vy', `${vp.y}px`)
+      }
       const period = 26 * vp.zoom
       grid.style.backgroundSize = `${period}px ${period}px`
       /* one period of overhang: the layer slides back by up to a period */
@@ -319,7 +372,7 @@ export function Stage({
         pixels.hidden = opacity === 0
         pixels.style.opacity = String(opacity)
         /* the frames' own grids read the same fade */
-        stage.style.setProperty('--pixel-grid', String(opacity))
+        setVar(stage, '--pixel-grid', String(opacity))
         pixels.style.backgroundSize = `${vp.zoom}px ${vp.zoom}px`
         const px = (((vp.x % vp.zoom) + vp.zoom) % vp.zoom) - vp.zoom
         const py = (((vp.y % vp.zoom) + vp.zoom) % vp.zoom) - vp.zoom
@@ -332,11 +385,11 @@ export function Stage({
     const unsub = useStore.subscribe((s, prev) => {
       /* a (re)connect needs the camera announced afresh — the server only
          knows what this socket has sent */
-      if (s.connected && !prev.connected && ref.current) sendViewport(s.viewport, ref.current)
+      if (s.connected && !prev.connected) sendViewport(s.viewport, stageBox.current)
       if (s.viewOptions.pixelGrid !== prev.viewOptions.pixelGrid) apply(s.viewport)
       if (s.viewport === prev.viewport) return
       apply(s.viewport)
-      if (ref.current) sendViewport(s.viewport, ref.current)
+      sendViewport(s.viewport, stageBox.current)
       window.clearTimeout(settle)
       settle = window.setTimeout(() => {
         setLayoutZoom(layoutZoomFor(useStore.getState().viewport.zoom, MAX_ZOOM))
@@ -423,7 +476,7 @@ export function Stage({
     const el = ref.current
     const ro = new ResizeObserver(() => {
       if (!el) return
-      sendViewport(useStore.getState().viewport, el)
+      sendViewport(useStore.getState().viewport, { width: el.clientWidth, height: el.clientHeight })
       retarget()
     })
     if (el) ro.observe(el)
@@ -883,6 +936,27 @@ export function Stage({
     const isBackground =
       e.target === e.currentTarget || target.classList.contains('world') || !!target.closest('[data-frame-locked]')
     const s = useStore.getState()
+    /* a frame the compositor draws with no FrameView over it: the stage is
+       its press target, picked from the scene */
+    if (isBackground && e.target === e.currentTarget) {
+      const at = toWorld(e.clientX, e.clientY)
+      const hit = unmountedFrameAt(at.x, at.y, mountsRef.current?.mounted ?? null)
+      if (hit) {
+        const frameAction = resolvePointerAction({
+          tool: s.tool,
+          target: 'frame',
+          button: e.button,
+          pointerType: e.pointerType,
+          spaceHeld: s.panMode,
+        })
+        if (frameAction === 'frame-drag') {
+          e.currentTarget.setPointerCapture(e.pointerId)
+          return startSceneDrag(e, hit)
+        }
+        if (frameAction === 'pan') return startPan(e, false)
+        if (frameAction === 'comment') return select(hit.frame.id)
+      }
+    }
     const action = resolvePointerAction({
       tool: s.tool,
       target: isBackground ? 'background' : 'frame',
@@ -1055,13 +1129,19 @@ export function Stage({
         height: Math.abs(cur.y - origin.y),
       }
       setMarquee(rect)
-      const frames = currentPageCanvas()?.frames ?? []
-      /* a hidden frame is not on the stage to be lassoed, and a locked one is
-         not the marquee's to take */
-      const hits = frames
+      /* a hidden frame is not on the stage to be lassoed (the scene leaves
+         it out), and a locked one is not the marquee's to take */
+      const hits = (
+        currentScene()?.query({
+          minX: rect.x,
+          minY: rect.y,
+          maxX: rect.x + rect.width,
+          maxY: rect.y + rect.height,
+        }) ?? []
+      )
+        .map((it) => it.frame)
         .filter(
           (f) =>
-            !f.hidden &&
             !f.locked &&
             f.x < rect.x + rect.width &&
             f.x + f.width > rect.x &&
@@ -1091,10 +1171,25 @@ export function Stage({
     window.addEventListener('pointercancel', onCancel)
   }
 
+  /* the frame under a resting pointer goes live, so its element outlines
+     and picks are there by the time it is clicked */
+  const hoverDwell = useRef<{ id: string | null; timer: number }>({ id: null, timer: 0 })
+  useEffect(() => () => window.clearTimeout(hoverDwell.current.timer), [])
+  function dwellOn(x: number, y: number, buttons: number) {
+    if (!mountsRef.current || buttons) return
+    const id = currentScene()?.topmostAt(x, y)?.frame.id ?? null
+    const dwell = hoverDwell.current
+    if (id === dwell.id) return
+    dwell.id = id
+    window.clearTimeout(dwell.timer)
+    dwell.timer = window.setTimeout(() => useSceneState.getState().setHovered(id), id ? 90 : 400)
+  }
+
   function onPointerMove(e: React.PointerEvent) {
     drawing.onPointerMove(e)
     const { x, y } = toWorld(e.clientX, e.clientY)
     sendCursor(Math.round(x), Math.round(y))
+    dwellOn(x, y, e.buttons)
   }
 
   return (
@@ -1160,6 +1255,8 @@ export function Stage({
               style={pixelGridLines(1)}
               ref={pixelGridRef}
             />
+            {/* the GPU layer: every frame not shown live, drawn as a texture */}
+            <CanvasCompositor stage={ref} />
             {/* `world` is likewise a behaviour hook: pan hit-testing checks
             classList.contains('world') to tell background from frame */}
             <div
@@ -1167,7 +1264,7 @@ export function Stage({
               ref={worldRef}
             >
               <FrameLabelLayer.Provider value={labelLayer}>
-                <FrameStack frames={canvas?.frames ?? []} layoutZoom={layoutZoom} />
+                <FrameStack frames={canvas?.frames ?? []} layoutZoom={layoutZoom} mounts={mounts} />
               </FrameLabelLayer.Provider>
               <GhostFrames />
               <FlowOverlay />
@@ -1184,9 +1281,11 @@ export function Stage({
                 />
               )}
             </div>
+            {/* the names of frames with no FrameView of their own */}
+            <CanvasLabels stage={ref} skip={mounts?.mounted ?? null} />
             {/* the selected frame's size badge, in screen px (FrameLabelLayer); after
                 the world so no frame, however it stacks, covers it */}
-            <div className="pointer-events-none absolute inset-0" ref={setLabelLayer} />
+            <div className="pointer-events-none absolute inset-0" ref={attachLabelLayer} />
             {showRulers && <Rulers stage={ref} />}
           </div>
         </ContextMenuTrigger>
@@ -1371,8 +1470,24 @@ function byCreation(a: Frame, b: Frame) {
  *  an iframe in the DOM reloads it, so a restack must not move any. The
  *  layer isolates the stack, so the overlays after it (cursors, guides, the
  *  marquee) stay above every frame. */
-function FrameStack({ frames, layoutZoom }: { frames: Frame[]; layoutZoom: number }) {
-  const mounted = useMemo(() => [...frames].sort(byCreation), [frames])
+function FrameStack({
+  frames,
+  layoutZoom,
+  mounts,
+}: {
+  frames: Frame[]
+  layoutZoom: number
+  /** the frames to mount and which are live; null: all, live (livePolicy.ts) */
+  mounts: Policy | null
+}) {
+  const selectedIds = useStore((s) => s.selectedIds)
+  const mounted = useMemo(
+    () =>
+      [...frames]
+        .filter((f) => (mounts ? (f.hidden ? selectedIds.includes(f.id) : mounts.mounted.has(f.id)) : true))
+        .sort(byCreation),
+    [frames, mounts, selectedIds],
+  )
   const rank = useMemo(() => new Map(frames.map((f, i) => [f.id, i + 1])), [frames])
   return (
     <div className="absolute top-0 left-0 isolate">
@@ -1380,7 +1495,13 @@ function FrameStack({ frames, layoutZoom }: { frames: Frame[]; layoutZoom: numbe
         f.hidden ? (
           <HiddenFrameView key={f.id} frame={f} stack={rank.get(f.id)} />
         ) : (
-          <FrameView key={f.id} frame={f} stack={rank.get(f.id)} layoutZoom={layoutZoom} />
+          <FrameView
+            key={f.id}
+            frame={f}
+            stack={rank.get(f.id)}
+            layoutZoom={layoutZoom}
+            live={mounts ? mounts.live.has(f.id) : true}
+          />
         ),
       )}
     </div>

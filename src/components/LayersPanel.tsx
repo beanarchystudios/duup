@@ -222,6 +222,56 @@ function visibleRows(frames: Frame[], query: string, expanded: Set<string>): Vis
 /** The Layers rail: every frame on the canvas, opening into the element tree
  *  of its HTML. Selection runs both ways — a row selects the element in the
  *  frame, a click in the frame highlights its row. */
+/* A long list mounts only the rows in view: every mounted row holds store
+   subscriptions that run on each store update (a pan step is one), which on
+   a page of thousands of frames cost more than the frame budget. Rows are
+   one fixed height (Row: h-7), so the window is plain arithmetic. */
+const ROW_HEIGHT = 28
+const WINDOW_FROM = 150
+const OVERSCAN = 12
+
+function useRowWindow(marker: React.RefObject<HTMLDivElement | null>, count: number, current: number) {
+  const [view, setView] = useState({ top: 0, height: 800 })
+  const windowed = count > WINDOW_FROM
+  useEffect(() => {
+    const body = marker.current?.closest<HTMLElement>('[data-slot="panel-body"]')
+    if (!windowed || !body) return
+    let raf = 0
+    const read = () => {
+      raf = 0
+      /* the rows start below whatever sits above the marker */
+      const offset = marker.current ? marker.current.offsetTop - body.offsetTop : 0
+      setView({ top: Math.max(0, body.scrollTop - offset), height: body.clientHeight })
+    }
+    const onScroll = () => {
+      if (!raf) raf = requestAnimationFrame(read)
+    }
+    read()
+    body.addEventListener('scroll', onScroll, { passive: true })
+    const ro = new ResizeObserver(onScroll)
+    ro.observe(body)
+    return () => {
+      body.removeEventListener('scroll', onScroll)
+      ro.disconnect()
+      cancelAnimationFrame(raf)
+    }
+  }, [windowed, marker])
+  /* the current row may sit outside the window, unmounted, where its own
+     scrollIntoView cannot reach it: the list brings it into view */
+  useEffect(() => {
+    const body = marker.current?.closest<HTMLElement>('[data-slot="panel-body"]')
+    if (!windowed || !body || current < 0) return
+    const offset = marker.current ? marker.current.offsetTop - body.offsetTop : 0
+    const top = offset + current * ROW_HEIGHT
+    if (top < body.scrollTop || top + ROW_HEIGHT > body.scrollTop + body.clientHeight)
+      body.scrollTop = top - body.clientHeight / 2
+  }, [windowed, current, marker])
+  if (!windowed) return { start: 0, end: count }
+  const start = Math.max(0, Math.floor(view.top / ROW_HEIGHT) - OVERSCAN)
+  const end = Math.min(count, Math.ceil((view.top + view.height) / ROW_HEIGHT) + OVERSCAN)
+  return { start, end }
+}
+
 export function LayersPanel({
   onAddFrame,
   surface = 'floating',
@@ -321,6 +371,10 @@ export function LayersPanel({
     rowsRef.current = rows
   }, [rows])
   const currentKey = selectedElement ? rowKey(selectedElement.frameId, selectedElement.selector) : selectedId
+  const currentIndex = useMemo(() => rows.findIndex((r) => r.key === currentKey), [rows, currentKey])
+  /* the list's first line, which the window measures the rows from */
+  const rowMarker = useRef<HTMLDivElement>(null)
+  const rowWindow = useRowWindow(rowMarker, rows.length, currentIndex)
 
   /* a layer row opens the element properties panel; a frame row closes it
      and leaves the frame's own inspector to the frame-name click */
@@ -654,31 +708,38 @@ export function LayersPanel({
                 {t('panels.layersNoMatch', { query: query.trim() })}
               </div>
             )}
-            {rows.map((row) =>
-              row.kind === 'frame' ? (
-                <FrameRow
-                  key={row.key}
-                  row={row}
-                  selected={row.frame.id === selectedId && !selectedElement}
-                  current={row.frame.id === selectedId}
-                  dragging={drag?.key === row.key}
-                  drop={drop?.key === row.key ? drop.place : undefined}
-                  onToggle={() => setOpen(row.key, !row.open)}
-                  onActivate={() => activate(row)}
-                  onPointerDown={(e) => onRowPointerDown(e, row)}
-                />
-              ) : (
-                <NodeRow
-                  key={row.key}
-                  row={row}
-                  selected={pickedRows.has(row.key)}
-                  dragging={drag?.key === row.key}
-                  drop={drop?.key === row.key ? drop.place : undefined}
-                  onToggle={() => setOpen(row.key, !row.open)}
-                  onActivate={(toggle) => activate(row, toggle)}
-                  onPointerDown={(e) => onRowPointerDown(e, row)}
-                />
-              ),
+            <div ref={rowMarker} aria-hidden />
+            {rowWindow.start > 0 && <div aria-hidden style={{ height: rowWindow.start * ROW_HEIGHT }} />}
+            {rows
+              .slice(rowWindow.start, rowWindow.end)
+              .map((row) =>
+                row.kind === 'frame' ? (
+                  <FrameRow
+                    key={row.key}
+                    row={row}
+                    selected={row.frame.id === selectedId && !selectedElement}
+                    current={row.frame.id === selectedId}
+                    dragging={drag?.key === row.key}
+                    drop={drop?.key === row.key ? drop.place : undefined}
+                    onToggle={() => setOpen(row.key, !row.open)}
+                    onActivate={() => activate(row)}
+                    onPointerDown={(e) => onRowPointerDown(e, row)}
+                  />
+                ) : (
+                  <NodeRow
+                    key={row.key}
+                    row={row}
+                    selected={pickedRows.has(row.key)}
+                    dragging={drag?.key === row.key}
+                    drop={drop?.key === row.key ? drop.place : undefined}
+                    onToggle={() => setOpen(row.key, !row.open)}
+                    onActivate={(toggle) => activate(row, toggle)}
+                    onPointerDown={(e) => onRowPointerDown(e, row)}
+                  />
+                ),
+              )}
+            {rowWindow.end < rows.length && (
+              <div aria-hidden style={{ height: (rows.length - rowWindow.end) * ROW_HEIGHT }} />
             )}
             {drop?.key === ROOT_KEY && (
               <div aria-hidden className="pointer-events-none mx-1.5 h-0.5 rounded-full bg-brand" />

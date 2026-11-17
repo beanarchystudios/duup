@@ -55,6 +55,17 @@ function Panel({
   /* marks the panel while its edge is dragged; styles.css pauses the chrome's
      position transitions then, so neighbours follow the pointer in step */
   const [dragging, setDragging] = React.useState(false)
+  /* the page-wide pause hangs off the root, not off a `body:has(...)` rule:
+     under :has, every element added or removed anywhere restyled the whole
+     page, which on a large canvas cost a third of a second each time */
+  React.useEffect(() => {
+    if (!dragging) return
+    const root = document.documentElement
+    root.dataset.panelResizing = ''
+    return () => {
+      delete root.dataset.panelResizing
+    }
+  }, [dragging])
   const endDrag = () => {
     drag.current = null
     setDragging(false)

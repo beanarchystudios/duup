@@ -1,6 +1,9 @@
 @import 'tailwindcss';
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
+/* Allo (OFL, allo.joshpuckett.me): the UI face, self-hosted from the npm
+   package: the variable font (weight, optical size, roundness) and obliques */
+@import 'allo-font';
 
 @custom-variant dark (&:where(.dark, .dark *));
 
@@ -186,11 +189,11 @@
   --warning-ink: #a8481a;
   /* the silver hairline an active agent's avatar wears in the presence pill */
   --glaze-ring: #c9c9cd;
-  --font-ui: 'Inter', 'Doop Keys', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-ui: 'Allo', 'Doop Keys', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   /* Display is the SAME sans as the UI — the chrome is quiet by design. The
      home greeting's Hanken Grotesk Light is the one other face (`font-hero`). */
-  --font-display: 'Inter', 'Doop Keys', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-  --font-hero: 'Hanken Grotesk', 'Inter', 'Doop Keys', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-display: 'Allo', 'Doop Keys', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --font-hero: 'Hanken Grotesk', 'Allo', 'Doop Keys', 'Helvetica Neue', Helvetica, Arial, sans-serif;
   --font-mono: 'Geist Mono', 'Doop Keys', ui-monospace, monospace;
   /* Ring system: no CSS borders on controls and panels — a 1px shadow ring
      draws the edge, and a soft two-step drop lifts it. --shadow-ring is a
@@ -483,7 +486,9 @@
 /* While a canvas panel's edge is dragged, the chrome positioned off its width
    (Inspector, side rail, tool rail, zoom pill) jumps with it rather than
    easing after it, so a growing panel never slides over a neighbour. */
-body:has([data-panel-resizing]) * {
+/* The flag sits on the root (ui/panel.tsx), not in a `body:has(...)` rule:
+   under :has, any element added or removed anywhere restyled every element. */
+:root[data-panel-resizing] * {
   transition-duration: 0s !important;
 }
 

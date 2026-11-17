@@ -1,0 +1,86 @@
+[
+  {
+    "size": "S",
+    "frames": 240,
+    "objects": 15572,
+    "openMs": 3135,
+    "settleMs": 4493,
+    "iframes": 240,
+    "heapMb": 166,
+    "renderer": "dom",
+    "overviewPan": {
+      "frames": 57,
+      "p50": 33.4,
+      "p95": 100,
+      "p99": 100.1,
+      "max": 100.1,
+      "janky": 54.4
+    },
+    "overviewZoom": {
+      "frames": 66,
+      "p50": 16.7,
+      "p95": 116.7,
+      "p99": 116.7,
+      "max": 116.7,
+      "janky": 43.9
+    },
+    "workPan": {
+      "frames": 75,
+      "p50": 16.8,
+      "p95": 66.7,
+      "p99": 66.8,
+      "max": 66.8,
+      "janky": 49.3
+    },
+    "workZoom": {
+      "frames": 65,
+      "p50": 16.7,
+      "p95": 83.4,
+      "p99": 83.4,
+      "max": 83.4,
+      "janky": 47.7
+    }
+  },
+  {
+    "size": "M",
+    "frames": 2400,
+    "objects": 199784,
+    "openMs": 14470,
+    "settleMs": 75405,
+    "iframes": 2400,
+    "heapMb": 719,
+    "renderer": "dom",
+    "overviewPan": {
+      "frames": 137,
+      "p50": 116.6,
+      "p95": 116.7,
+      "p99": 183.4,
+      "max": 3366.5,
+      "janky": 97.8
+    },
+    "overviewZoom": {
+      "frames": 6,
+      "p50": 549.9,
+      "p95": 3249.9,
+      "p99": 3249.9,
+      "max": 3249.9,
+      "janky": 50
+    },
+    "workPan": {
+      "frames": 15,
+      "p50": 33.3,
+      "p95": 849.9,
+      "p99": 849.9,
+      "max": 849.9,
+      "janky": 53.3
+    },
+    "workZoom": {
+      "frames": 9,
+      "p50": 33.3,
+      "p95": 3049.8,
+      "p99": 3049.8,
+      "max": 3049.8,
+      "janky": 55.6
+    }
+  }
+]

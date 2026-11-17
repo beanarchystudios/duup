@@ -815,6 +815,30 @@ export const useStore = create<State>((set, get) => ({
 /** The picked elements' selectors in `selectedElement`'s frame, the primary
  *  last; empty when nothing is picked. A path that set the primary alone
  *  leaves a stale list behind, which counts as a set of one. */
+/* one map per canvas object: the store makes a new canvas on every change */
+const frameMaps = new WeakMap<Canvas, Map<string, Frame>>()
+
+/** The canvas's frames by id, built once per canvas object. A selector run on
+ *  every store update (each pan step is one) looks frames up here instead of
+ *  scanning the page, which on a large page costs more than the frame budget. */
+export function framesById(canvas: Canvas): Map<string, Frame> {
+  let map = frameMaps.get(canvas)
+  if (!map) {
+    map = new Map(canvas.frames.map((f) => [f.id, f]))
+    frameMaps.set(canvas, map)
+  }
+  return map
+}
+
+/** The frames a command on `frameId` acts on: the selection when the frame is
+ *  in it, else the frame alone. */
+export function groupFramesOf(s: Pick<State, 'canvas' | 'selectedIds'>, frameId: string): Frame[] | null {
+  if (!s.canvas) return null
+  const ids = s.selectedIds.includes(frameId) ? s.selectedIds : [frameId]
+  const byId = framesById(s.canvas)
+  return ids.map((id) => byId.get(id)).filter((f): f is Frame => !!f)
+}
+
 export function pickedSelectors(s: Pick<State, 'selectedElement' | 'selectedElements'>): string[] {
   const primary = s.selectedElement?.selector
   if (!primary) return []

@@ -1,0 +1,128 @@
+[
+  {
+    "size": "S",
+    "frames": 240,
+    "objects": 15572,
+    "openMs": 114,
+    "settleMs": 114,
+    "iframes": 6,
+    "heapMb": 17,
+    "renderer": "webgl2",
+    "overviewPan": {
+      "frames": 180,
+      "p50": 16.7,
+      "p95": 16.7,
+      "p99": 16.8,
+      "max": 16.8,
+      "janky": 0
+    },
+    "overviewZoom": {
+      "frames": 182,
+      "p50": 16.7,
+      "p95": 16.7,
+      "p99": 16.8,
+      "max": 16.8,
+      "janky": 0
+    },
+    "workPan": {
+      "frames": 180,
+      "p50": 16.7,
+      "p95": 16.7,
+      "p99": 16.8,
+      "max": 16.8,
+      "janky": 0
+    },
+    "workZoom": {
+      "frames": 182,
+      "p50": 16.7,
+      "p95": 16.7,
+      "p99": 16.8,
+      "max": 16.8,
+      "janky": 0
+    }
+  },
+  {
+    "size": "M",
+    "frames": 2400,
+    "objects": 199784,
+    "openMs": 383,
+    "settleMs": 496,
+    "iframes": 6,
+    "heapMb": 40,
+    "renderer": "webgl2",
+    "overviewPan": {
+      "frames": 179,
+      "p50": 16.7,
+      "p95": 16.7,
+      "p99": 16.8,
+      "max": 16.8,
+      "janky": 0
+    },
+    "overviewZoom": {
+      "frames": 182,
+      "p50": 16.7,
+      "p95": 16.7,
+      "p99": 16.8,
+      "max": 16.8,
+      "janky": 0
+    },
+    "workPan": {
+      "frames": 180,
+      "p50": 16.7,
+      "p95": 16.8,
+      "p99": 16.8,
+      "max": 16.8,
+      "janky": 0
+    },
+    "workZoom": {
+      "frames": 182,
+      "p50": 16.7,
+      "p95": 16.8,
+      "p99": 16.8,
+      "max": 16.8,
+      "janky": 0
+    }
+  },
+  {
+    "size": "L",
+    "frames": 11000,
+    "objects": 616136,
+    "openMs": 1267,
+    "settleMs": 1267,
+    "iframes": 6,
+    "heapMb": 75,
+    "renderer": "webgl2",
+    "overviewPan": {
+      "frames": 179,
+      "p50": 16.7,
+      "p95": 16.7,
+      "p99": 16.8,
+      "max": 16.8,
+      "janky": 0
+    },
+    "overviewZoom": {
+      "frames": 181,
+      "p50": 16.7,
+      "p95": 16.7,
+      "p99": 16.8,
+      "max": 16.8,
+      "janky": 0
+    },
+    "workPan": {
+      "frames": 180,
+      "p50": 16.7,
+      "p95": 16.8,
+      "p99": 16.8,
+      "max": 16.8,
+      "janky": 0
+    },
+    "workZoom": {
+      "frames": 182,
+      "p50": 16.7,
+      "p95": 16.7,
+      "p99": 16.8,
+      "max": 16.8,
+      "janky": 0
+    }
+  }
+]

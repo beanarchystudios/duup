@@ -1,0 +1,5 @@
+[
+  { "size": "S", "framePctl95": 17.5, "settleMs": 4000, "heapMb": 400 },
+  { "size": "M", "framePctl95": 17.5, "settleMs": 8000, "heapMb": 900 },
+  { "size": "L", "framePctl95": 17.5, "settleMs": 15000, "heapMb": 1500 }
+]

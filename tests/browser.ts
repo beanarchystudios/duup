@@ -100,7 +100,8 @@ export async function serveBuilt(
     logLevel: 'error',
     appType: proxy ? 'spa' : 'mpa',
     build: { outDir: builtDir },
-    preview: { port: 0, proxy },
+    /* the raster frame (raster-frame.html) loads its module from an opaque origin */
+    preview: { port: 0, proxy, cors: true },
   })
   return {
     origin: server.resolvedUrls!.local[0]!.replace(/\/$/, ''),

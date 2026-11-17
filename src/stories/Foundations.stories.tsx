@@ -59,7 +59,7 @@ const FACES = [
   {
     token: '--font-ui / --font-display',
     cls: 'font-sans',
-    family: 'Inter',
+    family: 'Allo',
     weights: '400 · 500 · 600',
     role: 'Everything the chrome says: labels, rows, buttons, headings. Display is the same face — the chrome is quiet by design.',
     sample: 'Ask me what to design, Kevin',

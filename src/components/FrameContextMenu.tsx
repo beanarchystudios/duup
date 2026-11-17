@@ -6,7 +6,7 @@ import { writeCanvasClipboard } from '../lib/canvasClipboard'
 import { copyFramePng } from '../lib/frameExport'
 import { deleteFramesTracked } from '../lib/history'
 import { isStackLocked, setFramesHidden, setFramesLocked } from '../lib/layerEdits'
-import { canEditOpenCanvas, useStore } from '../lib/store'
+import { canEditOpenCanvas, groupFramesOf, useStore } from '../lib/store'
 import { setFramesApproval } from '../lib/frameApproval'
 import { useFrameSaves } from '../lib/frameSaves'
 import { MOD_KEY } from '../lib/keys'
@@ -53,10 +53,7 @@ export function FrameContextMenu({
   const pendingSave = useFrameSaves((s) => groupIds.some((id) => !!s.pending[id]))
   const streaming = useStore((s) => groupIds.some((id) => !!s.streams[id]))
   /* Hide/Show reads as one item: the group shows when every frame in it is hidden */
-  const allHidden = useStore((s) => {
-    const ids = s.selectedIds.includes(frame.id) ? s.selectedIds : [frame.id]
-    return (s.canvas?.frames ?? []).filter((f) => ids.includes(f.id)).every((f) => !!f.hidden)
-  })
+  const allHidden = useStore((s) => (groupFramesOf(s, frame.id) ?? []).every((f) => !!f.hidden))
   function groupFrames(): Frame[] {
     const s = useStore.getState()
     const ids = s.selectedIds.includes(frame.id) ? s.selectedIds : [frame.id]
@@ -64,20 +61,14 @@ export function FrameContextMenu({
   }
   /* Lock reads as one state for the group: it unlocks only once every frame
      in it is locked, otherwise it locks the rest (as ⌘⇧L does) */
-  const allLocked = useStore((s) => {
-    const ids = s.selectedIds.includes(frame.id) ? s.selectedIds : [frame.id]
-    const group = s.canvas?.frames.filter((f) => ids.includes(f.id)) ?? [frame]
-    return group.every((f) => f.locked)
-  })
+  const allLocked = useStore((s) => (groupFramesOf(s, frame.id) ?? [frame]).every((f) => f.locked))
   function deleteSelection() {
     /* locked frames stay, as they do on ⌫ */
     deleteFramesTracked(groupFrames().filter((f) => !f.locked))
   }
-  const allReady = useStore((s) => {
-    const ids = s.selectedIds.includes(frame.id) ? s.selectedIds : [frame.id]
-    const group = s.canvas?.frames.filter((f) => ids.includes(f.id)) ?? [frame]
-    return group.every((f) => f.approval?.status === 'ready_for_dev')
-  })
+  const allReady = useStore((s) =>
+    (groupFramesOf(s, frame.id) ?? [frame]).every((f) => f.approval?.status === 'ready_for_dev'),
+  )
   async function changeApproval() {
     setSavingApproval(true)
     try {
